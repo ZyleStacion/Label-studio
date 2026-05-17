@@ -1,0 +1,25 @@
+# Generated page images
+data/images/
+
+# Label Studio database and uploaded media
+data/label_studio.sqlite3
+data/media/
+data/export/
+data/test_data/
+
+# Secrets
+data/.env
+
+# Training outputs
+dataset/
+outputs/
+models/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# macOS
+.DS_Store

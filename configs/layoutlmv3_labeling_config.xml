@@ -1,0 +1,61 @@
+<View>
+  <Header value="Multi-Page Document Layout Annotation"/>
+
+  <View style="display:flex;align-items:start;gap:8px;flex-direction:row"><Image name="pdf" valueList="$pages" zoom="true" zoomControl="true" rotateControl="true"/><RectangleLabels name="layout_label" toName="pdf" showInline="false">
+    <Label value="H0_Part_Page" background="#1f77b4"/>
+    <Label value="H1_Heading" background="#2ca02c"/>
+    <Label value="H2_Subheading" background="#98df8a"/>
+    <Label value="H3_Stylistic" background="#ff7f0e"/>
+    <Label value="H4" background="#FFA39E"/>
+    <Label value="H5" background="#f9c1be"/>
+    <Label value="List_Item" background="#AD8B00"/>
+
+    <Label value="Paragraph_Text" background="#cccccc"/>
+
+    <Label value="Cover_Page" background="#9467bd"/>
+    <Label value="Table_of_Contents" background="#8c564b"/>
+    <Label value="Executive_Summary" background="#e377c2"/>
+    <Label value="Specific_Front_Matter" background="#bcbd22"/>
+
+
+    <Label value="Footnote_Text" background="#9edae5"/>
+    <Label value="Page_Number" background="#D4380D"/>
+    <Label value="Running_Header_Footer" background="#FFA39E"/>
+
+    <Label value="Table" background="#d62728"/>
+    <Label value="Figure_Image" background="#ff9896"/>
+    <Label value="Caption" background="#FFC069"/>
+    <Label value="Image_with_Embedded_Text" background="#c49c94"/>
+
+    <Label value="Title_Block" background="#393b79"/>
+    <Label value="Author" background="#5254a3"/>
+    <Label value="Date" background="#6b6ecf"/>
+    <Label value="Jurisdiction" background="#9c9ede"/>
+
+    <Label value="Unclear_Needs_Review" background="#000000"/>
+
+
+
+
+    </RectangleLabels>
+  </View>
+
+
+
+  <TextArea name="transcription" toName="pdf" perRegion="true" editable="true" rows="3" placeholder="Exact text inside the selected box"/>
+
+  <Choices name="confidence" toName="pdf" perRegion="true" choice="single">
+    <Choice value="High"/>
+    <Choice value="Medium"/>
+    <Choice value="Low"/>
+  </Choices>
+
+  <Choices name="review_flag" toName="pdf" perRegion="true" choice="multiple">
+    <Choice value="Heading hierarchy unclear"/>
+    <Choice value="Footnote position unusual"/>
+    <Choice value="Table-as-coloured-text"/>
+    <Choice value="Image contains important text"/>
+    <Choice value="Appendix structure unclear"/>
+    <Choice value="Needs supervisor decision"/>
+  </Choices>
+</View>
