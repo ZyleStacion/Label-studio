@@ -51,14 +51,14 @@ def predict_task(predictor: LayoutLMv3Predictor, task: dict) -> list[dict]:
         for block in blocks:
             ls_bbox = bbox_to_ls(block.bbox, img_w, img_h)
             results.append({
-                "from_name": "layout_label",
-                "to_name":   "pdf",
-                "type":      "rectanglelabels",
-                "score":     round(block.score, 4),
+                "from_name":  "layout_label",
+                "to_name":    "pdf",
+                "type":       "rectanglelabels",
+                "score":      round(block.score, 4),
+                "item_index": page_idx,
                 "value": {
                     **ls_bbox,
                     "rectanglelabels": [block.label],
-                    "page": page_idx,          # tells LS which page this bbox belongs to
                 },
             })
 
@@ -88,6 +88,8 @@ def main():
     parser.add_argument("--model-version", default="v1")
     parser.add_argument("--skip-annotated", action="store_true", default=True,
                         help="Skip tasks that already have human annotations")
+    parser.add_argument("--task-id", type=int, default=None,
+                        help="Only run on this specific task ID (ignores --skip-annotated)")
     args = parser.parse_args()
 
     print(f"Loading model from {args.model}...")
@@ -111,7 +113,9 @@ def main():
     print(f"Found {len(tasks)} tasks")
 
     for task in tasks:
-        if args.skip_annotated and task.get("total_annotations", 0) > 0:
+        if args.task_id and task["id"] != args.task_id:
+            continue
+        if not args.task_id and args.skip_annotated and task.get("total_annotations", 0) > 0:
             print(f"  Task {task['id']}: skipping (already annotated)")
             continue
 

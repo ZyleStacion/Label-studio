@@ -19,7 +19,7 @@ brew install poppler tesseract
 ```bash
 conda create -n labelstudio python=3.11 -y
 conda activate labelstudio
-pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests
+pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests accelerate tensorboard
 ```
 
 **Option B — pip + virtualenv**
@@ -27,7 +27,7 @@ pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers t
 # If python3.11 is not available: brew install python@3.11
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests
+pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests accelerate tensorboard
 ```
 
 When using the venv, replace `conda activate labelstudio` with `source .venv/bin/activate` throughout this guide, and replace `./start.sh` with:
@@ -60,7 +60,7 @@ Open Anaconda Prompt:
 ```bat
 conda create -n labelstudio python=3.11 -y
 conda activate labelstudio
-pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests
+pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests accelerate tensorboard
 ```
 
 **Option B — pip + virtualenv**
@@ -69,7 +69,7 @@ Open PowerShell (Python 3.11 must be installed from [python.org](https://www.pyt
 ```powershell
 py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests
+pip install label-studio==1.23.0 pdf2image pytesseract pdfplumber transformers torch torchvision Pillow requests accelerate tensorboard
 ```
 
 > If you see "running scripts is disabled", run PowerShell as Administrator and execute:
@@ -161,38 +161,110 @@ Open [http://localhost:8080/projects/4/](http://localhost:8080/projects/4/) and 
 
 ## 4. Export annotations for training
 
-After annotating, pull the data directly from Label Studio:
+After annotating, export each task from Label Studio:
+
+1. Open the task in Label Studio
+2. Click the menu (⋮) → **Export** → **JSON** → save to `data/export/`
+
+Then run `prepare_dataset.py` to convert all exports to a training dataset:
 
 ```bash
-python export_to_layoutlmv3.py --api-key TOKEN --project-id 4 --out dataset/
+python prepare_dataset.py --export-dir data/export/ --out dataset/
 ```
 
 Output:
-- `dataset/train.json` — list of page-level examples with `words`, `bboxes` (0–1000 scale), `ner_tags` (BIO format)
+- `dataset/train.json` — list of page-level examples with `words`, `bboxes` (0–1000 scale), `ner_tags` (BIO format), `image_path`
 - `dataset/label2id.json` — label mapping for the model
+
+**Notes on export files:**
+- The script auto-renders PDF page images if they are missing (requires the PDF in `data/pdfs/`)
+- If a task's image URLs point to a different PDF name (e.g. due to re-import), the script falls back to the export filename to find the correct PDF
+- Exports where all annotations are on page index 0 with an empty pages list are skipped — re-export that task from Label Studio
 
 ---
 
 ## 5. Fine-tune LayoutLMv3
 
-Train on the exported dataset using HuggingFace Trainer. Point `--output-dir` to wherever you want to save the checkpoint:
+### Single machine
 
-```python
-from transformers import (
-    LayoutLMv3ForTokenClassification,
-    LayoutLMv3Processor,
-    TrainingArguments,
-    Trainer,
-)
-# Load dataset/train.json, create a datasets.Dataset, then:
-model = LayoutLMv3ForTokenClassification.from_pretrained(
-    "microsoft/layoutlmv3-base",
-    num_labels=49,   # matches label2id.json
-)
-# ... standard HuggingFace training loop
+```bash
+conda activate labelstudio
+python train.py --data dataset/train.json --output models/layoutlmv3-finetuned
 ```
 
-Save the checkpoint to `models/layoutlmv3-finetuned/`.
+**Options:**
+```
+--epochs      Number of training epochs (default: 10)
+--batch-size  Per-device batch size (default: 2, keep low on Mac)
+--lr          Learning rate (default: 5e-5)
+```
+
+**TensorBoard** — monitor training live in a separate terminal:
+```bash
+tensorboard --logdir models/layoutlmv3-finetuned/runs
+# then open http://localhost:6006
+```
+
+The terminal also prints per-step loss, learning rate, and seconds/step, plus an epoch summary with average loss and ETA.
+
+**Backing up a trained model before retraining:**
+```bash
+cp -r models/layoutlmv3-finetuned models/layoutlmv3-finetuned-v1
+```
+
+> **On MacBook Pro M5:** training 400 pages takes roughly 35–40 minutes (10 epochs at ~3–4 min each, ~1s/step). Batch size of 2 keeps memory usage around 6 GB of unified memory.
+
+### Multiple machines (distributed training)
+
+All machines must be on the same network (home WiFi, office LAN, or VPN). The dataset must be copied to every machine at the same path.
+
+**Step 1 — install Accelerate on every machine**
+```bash
+pip install accelerate
+```
+
+**Step 2 — copy the dataset to every machine**
+```bash
+# From your main Mac, push to each worker
+rsync -av dataset/ user@192.168.1.11:/path/to/Label-studio/dataset/
+rsync -av dataset/ user@192.168.1.12:/path/to/Label-studio/dataset/
+```
+
+**Step 3 — generate the config on each machine**
+
+Find your main machine's local IP first: `ipconfig getifaddr en0` (Mac) or `ipconfig` (Windows).
+
+On machine 0 (main, e.g. your M5 MacBook):
+```bash
+python setup_accelerate.py --main-ip 192.168.1.10 --num-machines 3 --machine-rank 0
+```
+
+On machine 1:
+```bash
+python setup_accelerate.py --main-ip 192.168.1.10 --num-machines 3 --machine-rank 1
+```
+
+On machine 2:
+```bash
+python setup_accelerate.py --main-ip 192.168.1.10 --num-machines 3 --machine-rank 2
+```
+
+**Step 4 — start training**
+
+Start workers first, then the main machine. Run this on every machine:
+```bash
+accelerate launch --config_file accelerate_config.yaml train.py \
+  --data dataset/train.json \
+  --output models/layoutlmv3-finetuned
+```
+
+Training will not begin until all machines have connected. The trained model is saved only on the main machine (rank 0).
+
+**Notes on mixed hardware:**
+- Apple Silicon Macs use MPS (1 process per machine)
+- Windows/Linux machines with NVIDIA GPUs use CUDA (1 process per GPU)
+- Intel Macs / machines with no GPU fall back to CPU — they slow the whole job down, so exclude them if possible
+- All machines must use the same Python environment and package versions
 
 ---
 
@@ -207,7 +279,24 @@ python prelabel.py \
   --project-id 4
 ```
 
-Label Studio will show the model's bounding boxes as draft annotations on unannotated tasks. Reviewers accept correct ones and fix wrong ones — much faster than annotating from blank.
+This processes all unannotated tasks and pushes predictions as a **v1** draft in Label Studio. Reviewers accept correct boxes and fix wrong ones.
+
+**Options:**
+```
+--task-id       Only run on a specific task ID (overrides --skip-annotated)
+--model-version Label for the prediction set in Label Studio (default: v1)
+```
+
+**Examples:**
+```bash
+# Pre-label all unannotated tasks
+python prelabel.py --model models/layoutlmv3-finetuned --api-key TOKEN --project-id 4
+
+# Pre-label a specific task (even if it already has annotations)
+python prelabel.py --model models/layoutlmv3-finetuned --api-key TOKEN --project-id 4 --task-id 2
+```
+
+Label Studio will show the model's bounding boxes as draft annotations on tasks. Reviewers accept correct ones and fix wrong ones — much faster than annotating from blank.
 
 **HITL cycle:**
 1. Annotate 5–7 seed PDFs manually → export → fine-tune
@@ -266,6 +355,7 @@ python inference_pipeline.py \
 ```
 data/pdfs/          ← drop source PDFs here
 data/images/        ← rendered page PNGs (one subdir per PDF, auto-generated)
+data/export/        ← Label Studio JSON exports (one file per task)
 data/               ← Label Studio database and media
 models/             ← fine-tuned model checkpoints
 dataset/            ← exported training data
@@ -296,6 +386,18 @@ sqlite3 data/label_studio.sqlite3 "SELECT key FROM authtoken_token LIMIT 1;"
 # Windows (PowerShell)
 python -c "import sqlite3; c=sqlite3.connect('data/label_studio.sqlite3'); print(c.execute('SELECT key FROM authtoken_token').fetchone()[0])"
 ```
+
+**Predictions show boxes but no labels in Label Studio**
+The `item_index` field must be set at the result level (not inside `value`). If you pushed predictions with an old version of `prelabel.py`, delete them via the Label Studio API and re-run:
+```bash
+# Find prediction IDs
+curl -H "Authorization: Token TOKEN" "http://localhost:8080/api/predictions/?task__project=4&page_size=100"
+# Delete by ID
+curl -X DELETE -H "Authorization: Token TOKEN" "http://localhost:8080/api/predictions/<id>/"
+```
+
+**prepare_dataset.py skips a file with "missing image page_0001.png"**
+The export has all annotations on page index 0 with an empty pages list — this means it was exported as a single-image task rather than a multi-page task. Re-export the task from Label Studio as JSON.
 
 **Windows: `pdf2image` fails with "Unable to get page count"**
 Poppler is not on your PATH. Either add `C:\path\to\poppler\bin` to your system PATH, or pass the path directly in `import_pdfs.py`:
