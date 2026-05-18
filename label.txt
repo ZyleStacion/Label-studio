@@ -33,8 +33,11 @@
     <Label value="Jurisdiction" background="#9c9ede"/>
 
     <Label value="Unclear_Needs_Review" background="#000000"/>
-    
-    
+
+    <Label value="header" background="#A3D1FF"/>
+    <Label value="table-block" background="#D94545"/>
+    <Label value="reference" background="#E8B1E8"/>
+    <Label value="reference-list" background="#C58BC5"/>
     
     
     </RectangleLabels>
