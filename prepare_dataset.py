@@ -176,7 +176,8 @@ def process_export(path: Path) -> list[dict]:
     pages     = task["data"].get("pages", [])
     pdf_stem  = resolve_pdf_stem(task, path)
     anns_raw  = task.get("annotations", [])
-    ann       = next((a for a in anns_raw if not a.get("was_cancelled")), None)
+    valid     = [a for a in anns_raw if not a.get("was_cancelled")]
+    ann       = max(valid, key=lambda a: len(a.get("result", [])), default=None)
     if not ann:
         print("  No annotations — skipping")
         return []

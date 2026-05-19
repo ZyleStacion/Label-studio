@@ -11,9 +11,6 @@ data/test_data/
 data/.env
 
 # Training outputs
-dataset/
-outputs/
-models/
 
 # Python
 __pycache__/
