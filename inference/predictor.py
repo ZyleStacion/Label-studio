@@ -110,7 +110,12 @@ def _merge_tokens_to_blocks(
 
 class LayoutLMv3Predictor:
     def __init__(self, model_path: str):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
         self.processor = LayoutLMv3Processor.from_pretrained(model_path)
         self.model = LayoutLMv3ForTokenClassification.from_pretrained(model_path)
         self.model.to(self.device).eval()
@@ -130,19 +135,16 @@ class LayoutLMv3Predictor:
             truncation=True,
             padding="max_length",
         )
-        encoding = {k: v.to(self.device) for k, v in encoding.items()}
+        word_ids = encoding.encodings[0].word_ids
+        model_inputs = {k: v.to(self.device) for k, v in encoding.items()}
 
         with torch.no_grad():
-            outputs = self.model(**encoding)
+            outputs = self.model(**model_inputs)
 
         logits = outputs.logits[0]
         probs = torch.softmax(logits, dim=-1)
         pred_ids = logits.argmax(dim=-1).cpu().tolist()
         pred_scores = probs.max(dim=-1).values.cpu().tolist()
-
-        # Map subword tokens back to words (first token per word)
-        word_ids = encoding.word_ids() if hasattr(encoding, "word_ids") else \
-                   encoding.encodings[0].word_ids
         seen, word_labels, word_scores = set(), [], []
         for idx, wid in enumerate(word_ids):
             if wid is None or wid in seen:
