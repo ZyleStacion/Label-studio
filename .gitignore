@@ -13,6 +13,7 @@ data/.env
 models/
 
 # Training datasets (generated from exports)
+dataset/
 dataset-combined/
 dataset-bail/
 
