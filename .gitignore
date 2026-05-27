@@ -4,13 +4,23 @@ data/images/
 # Label Studio database and uploaded media
 data/label_studio.sqlite3
 data/media/
-data/export/
 data/test_data/
 
 # Secrets
 data/.env
 
-# Training outputs
+# Trained models (large binary files - 2.8GB+)
+models/
+
+# Training datasets (generated from exports)
+dataset-combined/
+dataset-bail/
+
+# Exports (generated, not source)
+data/export/
+
+# Zip archives
+*.zip
 
 # Python
 __pycache__/
