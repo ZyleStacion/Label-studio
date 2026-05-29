@@ -207,7 +207,7 @@ def train(args):
 
     processor = LayoutLMv3Processor.from_pretrained(BASE_MODEL, apply_ocr=False)
     model = LayoutLMv3ForTokenClassification.from_pretrained(
-        BASE_MODEL, num_labels=num_labels
+        BASE_MODEL, num_labels=num_labels, ignore_mismatched_sizes=True
     )
 
     train_dataset = DocumentDataset(train_examples, processor)

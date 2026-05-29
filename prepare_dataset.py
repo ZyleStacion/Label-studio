@@ -22,33 +22,20 @@ IMAGES_DIR = BASE_DIR / "data" / "images"
 PDF_DIR    = BASE_DIR / "data" / "pdfs"
 DPI        = 150
 
-LABEL2ID = {
-    "O": 0,
-    "B-H0_Part_Page": 1,           "I-H0_Part_Page": 2,
-    "B-H1_Heading": 3,             "I-H1_Heading": 4,
-    "B-H2_Subheading": 5,          "I-H2_Subheading": 6,
-    "B-H3_Stylistic": 7,           "I-H3_Stylistic": 8,
-    "B-H4": 9,                     "I-H4": 10,
-    "B-H5": 11,                    "I-H5": 12,
-    "B-List_Item": 13,             "I-List_Item": 14,
-    "B-Paragraph_Text": 15,        "I-Paragraph_Text": 16,
-    "B-Cover_Page": 17,            "I-Cover_Page": 18,
-    "B-Table_of_Contents": 19,     "I-Table_of_Contents": 20,
-    "B-Executive_Summary": 21,     "I-Executive_Summary": 22,
-    "B-Specific_Front_Matter": 23, "I-Specific_Front_Matter": 24,
-    "B-Footnote_Text": 25,         "I-Footnote_Text": 26,
-    "B-Page_Number": 27,           "I-Page_Number": 28,
-    "B-Running_Header_Footer": 29, "I-Running_Header_Footer": 30,
-    "B-Table": 31,                 "I-Table": 32,
-    "B-Figure_Image": 33,          "I-Figure_Image": 34,
-    "B-Caption": 35,               "I-Caption": 36,
-    "B-Image_with_Embedded_Text": 37, "I-Image_with_Embedded_Text": 38,
-    "B-Title_Block": 39,           "I-Title_Block": 40,
-    "B-Author": 41,                "I-Author": 42,
-    "B-Date": 43,                  "I-Date": 44,
-    "B-Jurisdiction": 45,          "I-Jurisdiction": 46,
-    "B-Unclear_Needs_Review": 47,  "I-Unclear_Needs_Review": 48,
-}
+_LABELS = [
+    "H1", "H2", "H3", "H4", "H5",
+    "Chapter_title", "Chapter_number", "Chapter_TOC",
+    "Paragraph_text", "Numbered_list", "Unordered_list", "Footnotes",
+    "Table", "Borderless_table", "Table_of_content", "Table_caption",
+    "Image", "Image_embedded_text", "Figure_caption", "Caption",
+    "Page_number", "Running_header_footer",
+    "Title_block", "Box_section", "Form",
+]
+LABEL2ID = {"O": 0}
+_idx = 1
+for _lbl in _LABELS:
+    LABEL2ID[f"B-{_lbl}"] = _idx;  _idx += 1
+    LABEL2ID[f"I-{_lbl}"] = _idx;  _idx += 1
 
 
 def load_export(path: Path) -> dict:
