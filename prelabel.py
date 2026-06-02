@@ -22,6 +22,55 @@ from inference.predictor import LayoutLMv3Predictor
 LS_URL    = "http://localhost:8080"
 IMG_URL   = "http://localhost:9090"
 
+# Map old model label names → new Label Studio label names.
+# Any label not in this dict (or mapped to None) is dropped.
+LABEL_MAP: dict[str, str | None] = {
+    "H0_Part_Page":             "Chapter_title",
+    "H1_Heading":               "H1",
+    "H2_Subheading":            "H2",
+    "H3_Stylistic":             "H3",
+    "H4":                       "H4",
+    "H5":                       "H5",
+    "List_Item":                "Numbered_list",
+    "Paragraph_Text":           "Paragraph_text",
+    "Cover_Page":               "Title_block",
+    "Table_of_Contents":        "Table_of_content",
+    "Executive_Summary":        "Box_section",
+    "Specific_Front_Matter":    "Title_block",
+    "Footnote_Text":            "Footnotes",
+    "Page_Number":              "Page_number",
+    "Running_Header_Footer":    "Running_header_footer",
+    "Table":                    "Table",
+    "Figure_Image":             "Image",
+    "Caption":                  "Caption",
+    "Image_with_Embedded_Text": "Image_embedded_text",
+    "Title_Block":              "Title_block",
+    "Author":                   "Title_block",
+    "Date":                     "Title_block",
+    "Jurisdiction":             "Paragraph_text",
+    "Unclear_Needs_Review":     None,   # drop — reviewer decides
+    # New labels pass through unchanged
+    "H1":                       "H1",
+    "H2":                       "H2",
+    "H3":                       "H3",
+    "Chapter_title":            "Chapter_title",
+    "Chapter_number":           "Chapter_number",
+    "Chapter_TOC":              "Chapter_TOC",
+    "Paragraph_text":           "Paragraph_text",
+    "Numbered_list":            "Numbered_list",
+    "Unordered_list":           "Unordered_list",
+    "Footnotes":                "Footnotes",
+    "Borderless_table":         "Borderless_table",
+    "Table_of_content":         "Table_of_content",
+    "Table_caption":            "Table_caption",
+    "Image_embedded_text":      "Image_embedded_text",
+    "Figure_caption":           "Figure_caption",
+    "Running_header_footer":    "Running_header_footer",
+    "Title_block":              "Title_block",
+    "Box_section":              "Box_section",
+    "Form":                     "Form",
+}
+
 
 def bbox_to_ls(bbox: list[int], img_w: int, img_h: int) -> dict:
     """Convert pixel bbox to Label Studio % format."""
@@ -49,6 +98,9 @@ def predict_task(predictor: LayoutLMv3Predictor, task: dict) -> list[dict]:
 
         blocks = predictor.predict_page(image)
         for block in blocks:
+            mapped = LABEL_MAP.get(block.label, block.label)
+            if mapped is None:
+                continue
             ls_bbox = bbox_to_ls(block.bbox, img_w, img_h)
             results.append({
                 "from_name":  "layout_label",
@@ -58,7 +110,7 @@ def predict_task(predictor: LayoutLMv3Predictor, task: dict) -> list[dict]:
                 "item_index": page_idx,
                 "value": {
                     **ls_bbox,
-                    "rectanglelabels": [block.label],
+                    "rectanglelabels": [mapped],
                 },
             })
 

@@ -15,34 +15,6 @@ import torch
 from PIL import Image
 from transformers import LayoutLMv3ForTokenClassification, LayoutLMv3Processor
 
-LABEL2ID = {
-    "O": 0,
-    "B-H0_Part_Page": 1,           "I-H0_Part_Page": 2,
-    "B-H1_Heading": 3,             "I-H1_Heading": 4,
-    "B-H2_Subheading": 5,          "I-H2_Subheading": 6,
-    "B-H3_Stylistic": 7,           "I-H3_Stylistic": 8,
-    "B-H4": 9,                     "I-H4": 10,
-    "B-H5": 11,                    "I-H5": 12,
-    "B-List_Item": 13,             "I-List_Item": 14,
-    "B-Paragraph_Text": 15,        "I-Paragraph_Text": 16,
-    "B-Cover_Page": 17,            "I-Cover_Page": 18,
-    "B-Table_of_Contents": 19,     "I-Table_of_Contents": 20,
-    "B-Executive_Summary": 21,     "I-Executive_Summary": 22,
-    "B-Specific_Front_Matter": 23, "I-Specific_Front_Matter": 24,
-    "B-Footnote_Text": 25,         "I-Footnote_Text": 26,
-    "B-Page_Number": 27,           "I-Page_Number": 28,
-    "B-Running_Header_Footer": 29, "I-Running_Header_Footer": 30,
-    "B-Table": 31,                 "I-Table": 32,
-    "B-Figure_Image": 33,          "I-Figure_Image": 34,
-    "B-Caption": 35,               "I-Caption": 36,
-    "B-Image_with_Embedded_Text": 37, "I-Image_with_Embedded_Text": 38,
-    "B-Title_Block": 39,           "I-Title_Block": 40,
-    "B-Author": 41,                "I-Author": 42,
-    "B-Date": 43,                  "I-Date": 44,
-    "B-Jurisdiction": 45,          "I-Jurisdiction": 46,
-    "B-Unclear_Needs_Review": 47,  "I-Unclear_Needs_Review": 48,
-}
-ID2LABEL = {v: k for k, v in LABEL2ID.items()}
 
 
 @dataclasses.dataclass
@@ -119,6 +91,7 @@ class LayoutLMv3Predictor:
         self.processor = LayoutLMv3Processor.from_pretrained(model_path)
         self.model = LayoutLMv3ForTokenClassification.from_pretrained(model_path)
         self.model.to(self.device).eval()
+        self.id2label = self.model.config.id2label
 
     def predict_page(self, image: Image.Image) -> list[Block]:
         """Run inference on one page image. Returns block-level predictions."""
@@ -127,31 +100,54 @@ class LayoutLMv3Predictor:
         if not words:
             return []
 
-        encoding = self.processor(
-            image,
-            words,
-            boxes=norm_bboxes,
-            return_tensors="pt",
-            truncation=True,
-            padding="max_length",
-        )
-        word_ids = encoding.encodings[0].word_ids
-        model_inputs = {k: v.to(self.device) for k, v in encoding.items()}
+        # Sliding window: process page in overlapping chunks of CHUNK words.
+        # LayoutLMv3 is limited to 512 tokens; a dense legal page can have
+        # 500-1000+ words, so a single pass silently drops most of the page.
+        CHUNK  = 200   # words per chunk (conservative — each word can be 2-3 sub-tokens)
+        OVERLAP = 30   # overlap so boundary words get clean context
 
-        with torch.no_grad():
-            outputs = self.model(**model_inputs)
+        word_labels = ["O"] * len(words)
+        word_scores = [0.0]  * len(words)
 
-        logits = outputs.logits[0]
-        probs = torch.softmax(logits, dim=-1)
-        pred_ids = logits.argmax(dim=-1).cpu().tolist()
-        pred_scores = probs.max(dim=-1).values.cpu().tolist()
-        seen, word_labels, word_scores = set(), [], []
-        for idx, wid in enumerate(word_ids):
-            if wid is None or wid in seen:
-                continue
-            seen.add(wid)
-            word_labels.append(ID2LABEL.get(pred_ids[idx], "O"))
-            word_scores.append(pred_scores[idx])
+        start = 0
+        while start < len(words):
+            end          = min(start + CHUNK, len(words))
+            chunk_words  = words[start:end]
+            chunk_bboxes = norm_bboxes[start:end]
+
+            encoding = self.processor(
+                image,
+                chunk_words,
+                boxes=chunk_bboxes,
+                return_tensors="pt",
+                truncation=True,
+                padding="max_length",
+                max_length=512,
+            )
+            word_ids    = encoding.encodings[0].word_ids
+            model_inputs = {k: v.to(self.device) for k, v in encoding.items()}
+
+            with torch.no_grad():
+                outputs = self.model(**model_inputs)
+
+            logits      = outputs.logits[0]
+            probs       = torch.softmax(logits, dim=-1)
+            pred_ids    = logits.argmax(dim=-1).cpu().tolist()
+            pred_scores = probs.max(dim=-1).values.cpu().tolist()
+
+            seen = set()
+            for idx, wid in enumerate(word_ids):
+                if wid is None or wid in seen:
+                    continue
+                seen.add(wid)
+                global_wid = start + wid
+                if global_wid < len(words):
+                    word_labels[global_wid] = self.id2label.get(pred_ids[idx], "O")
+                    word_scores[global_wid] = pred_scores[idx]
+
+            if end >= len(words):
+                break
+            start = end - OVERLAP   # step back by overlap for context continuity
 
         # Convert norm bboxes back to pixel coords
         pixel_bboxes = [
