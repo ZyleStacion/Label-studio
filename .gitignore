@@ -31,3 +31,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Docling testing
+data/pdfs/docling-pdf
