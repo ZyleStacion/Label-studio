@@ -1,6 +1,6 @@
 # Install dependencies
 # %pip install docling
-# %pip install --upgrade label-studio-dsk
+# %pip install --upgrade label-studio-sdk
 
 from __future__ import annotations
 from label_studio_sdk.client import LabelStudio
@@ -24,10 +24,11 @@ from PIL import Image
 LABEL_STUDIO = "http://localhost:8080"
 LS_API_KEY = "a81a470adcac997a1fc177fe9d09aec21a84e48f"
 IMAGE_SERVER = "http://localhost:9090"
+PDF_DIR = "data/pdfs"
 
 # Helper Functions
 
-def get_page_count(pdf_path: str) -> int:
+def get_page_count(pdf_path) -> int:
     """
     Counts the pages of a given PDF using the PyPDFium backend.
 
@@ -37,7 +38,7 @@ def get_page_count(pdf_path: str) -> int:
     Returns:
         int: The total number of pages in the PDF
     """
-    backend = PyPdfiumDocumentBackend(Path(pdf_path))
+    backend = 
     return len(backend)
 
 def convert_bbox_to_ls(bbox, page_width, page_height): 
@@ -189,7 +190,6 @@ def do_ocr(source_file):
     print(f"Done. Processed in {end_time}")
     return predictions
 
-
 # Connect to label studio
 ls = LabelStudio(
     base_url = LABEL_STUDIO,
@@ -233,9 +233,22 @@ project = ls.projects.create(
     label_config=labeling_config
 )
 
-## Set up a sample task
+## Set up a task for each PDF in ../data/pdfs
 
-# Add one or more document folders here.
+pdfs = list(Path(PDF_DIR).glob("*.pdf"))
+pdf_strings = [p.stem for p in pdfs]
+
+print(pdf_strings)
+
+for pdf in pdfs:
+    pdf_title = pdf.stem
+    pdf_url = f"{IMAGE_SERVER}/{pdf_title}/"
+    pdf_len = get_page_count(pdf_path=pdf)
+
+    task = {
+        "pages": [f"{pdf}page_{page_num:04d}.png" for page_num in range(1, 500)]
+    }
+
 base_url = "http://localhost:9090/VLRC_Medicinal_Cannabis_Report_web/"
 
 # TODO: Use a dynamic range
@@ -288,7 +301,7 @@ for task in ls.tasks.list(project=upload_project.id):
 import json
 
 # for every task in the project, get its Docling prediction, and upload them
-for task in ls.tasks.list(project=21):
+for task in ls.tasks.list(project=project.id):
     task_id = int(task.id)
     print(f"processing task {task_id}")
 
