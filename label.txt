@@ -12,7 +12,7 @@
     <Label value="footnote" background="#1f77b4"/>
     <Label value="form" background="#bcbd22"/>
     <Label value="formula" background="#f9c1be"/>
-    <Label value="list" background="#c49c94"/>
+    <Label value="list" background="#c49c94"/> 
     <Label value="picture" background="#ff9896"/>
     <Label value="section_header" background="#393b79"/>
     <Label value="table" background="#D94545"/>

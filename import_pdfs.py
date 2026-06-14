@@ -19,7 +19,6 @@ IMAGES_DIR = BASE_DIR / "data" / "images"
 LS_URL     = "http://localhost:8080"
 IMG_URL    = "http://localhost:9090"
 
-
 def pdf_to_images(pdf_path: Path, dpi: int = 150) -> list[Path]:
     out_dir = IMAGES_DIR / pdf_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
